@@ -600,6 +600,9 @@ footer{background:var(--slate-950);border-top:1px solid var(--slate-800);padding
   </div>
 </div>
 
+<!-- Embedded course data (rewritten by Save & Apply) -->
+<script id="cf-data" type="application/json"></script>
+
 <!-- Admin trigger button (hidden cog) -->
 <button class="admin-trigger-btn" onclick="showAdminLogin()" title="Admin">⚙️</button>
 
@@ -668,6 +671,10 @@ function copyNum(numId,btnId){
 }
 
 /* ──────── COURSE DATA ──────── */
+// Course data is stored directly in this HTML file inside <script id="cf-data">.
+// "Save & Apply" rewrites that block AND downloads an updated copy of this file,
+// so prices survive re-downloads, private browsing, and browser cache clears.
+
 const DEFAULT_COURSES = [
   {tag:'HTML & CSS', title:'Web Foundations',           desc:'Build beautiful, responsive websites from scratch with modern HTML5 & CSS3.',        level:'🟢 Beginner',    lessons:12, color:'cc-html',    originalPrice:0, discountedPrice:0},
   {tag:'JavaScript', title:'JS Mastery',                desc:'Master the language of the web — from ES6 basics to async/await and DOM manipulation.', level:'🟡 Intermediate', lessons:20, color:'cc-js',     originalPrice:0, discountedPrice:0},
@@ -679,11 +686,20 @@ const DEFAULT_COURSES = [
   {tag:'DSA',        title:'Data Structures & Algorithms',desc:'Crack coding interviews with solid fundamentals in algorithms and data structures.',  level:'🔴 Advanced',    lessons:30, color:'cc-dsa',   originalPrice:0, discountedPrice:0},
 ];
 
-let courses = JSON.parse(localStorage.getItem('cf_courses') || 'null') || DEFAULT_COURSES;
-// Migrate old data that used a single `price` field
-courses = courses.map(c => ({
+function loadCourses() {
+  try {
+    const el = document.getElementById('cf-data');
+    if (el) {
+      const parsed = JSON.parse(el.textContent.trim());
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    }
+  } catch(e) {}
+  return DEFAULT_COURSES.map(c => ({...c}));
+}
+
+let courses = loadCourses().map(c => ({
   ...c,
-  originalPrice:  c.originalPrice  ?? c.price ?? 0,
+  originalPrice:   c.originalPrice  ?? c.price ?? 0,
   discountedPrice: c.discountedPrice ?? c.price ?? 0,
 }));
 
@@ -767,9 +783,42 @@ function addCourse() {
 }
 
 function saveChanges() {
-  localStorage.setItem('cf_courses', JSON.stringify(courses));
+  // 1. Update the in-page <script id="cf-data"> so current tab reflects changes
+  let dataEl = document.getElementById('cf-data');
+  if (!dataEl) {
+    dataEl = document.createElement('script');
+    dataEl.id = 'cf-data';
+    dataEl.type = 'application/json';
+    document.body.appendChild(dataEl);
+  }
+  const json = JSON.stringify(courses, null, 2);
+  dataEl.textContent = json;
+
+  // 2. Rewrite the full HTML file with the updated data block embedded,
+  //    then trigger a download so the saved file is always up to date.
+  const fullHtml = document.documentElement.outerHTML;
+  // Replace the data block inside the downloaded copy
+  const marker = '<script id="cf-data" type="application/json">';
+  const endMarker = '<\/script>';
+  let updatedHtml;
+  if (fullHtml.includes(marker)) {
+    const before = fullHtml.substring(0, fullHtml.indexOf(marker) + marker.length);
+    const afterIdx = fullHtml.indexOf('</script>', fullHtml.indexOf(marker));
+    const after = fullHtml.substring(afterIdx);
+    updatedHtml = before + json + after;
+  } else {
+    updatedHtml = fullHtml;
+  }
+  const blob = new Blob([updatedHtml], {type: 'text/html'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'index.html';
+  a.click();
+  URL.revokeObjectURL(url);
+
   renderCoursesGrid();
-  showToast('✅ Changes saved and applied!');
+  showToast('✅ Saved! Replace your index.html with the downloaded file.');
 }
 
 /* ──────── ADMIN AUTH ──────── */
