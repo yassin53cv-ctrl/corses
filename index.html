@@ -688,7 +688,7 @@ const DEFAULT_COURSES = [
 const JSONBIN_BIN_ID    = "6a3d9279da38895dfeff7c3f";
 const JSONBIN_MASTER_KEY = '$2a$10$lc3kN2Vs3OoD9s5zZAOIbOyybaj9LGoVYv9YKMt0vW1KtUb0xj0gG';
 const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
-const CLOUD_CONFIGURED = JSONBIN_BIN_ID !== '6a3d9279da38895dfeff7c3f' && JSONBIN_MASTER_KEY !== '$2a$10$lc3kN2Vs3OoD9s5zZAOIbOyybaj9LGoVYv9YKMt0vW1KtUb0xj0gG';
+const CLOUD_CONFIGURED = JSONBIN_BIN_ID.length > 0 && JSONBIN_MASTER_KEY.length > 0;
 
 let courses = DEFAULT_COURSES.map(c => ({...c}));
 
