@@ -685,10 +685,10 @@ const DEFAULT_COURSES = [
    3. Copy the Bin ID from the URL/dashboard and your "X-Master-Key"
       from Account > API Keys.
    4. Paste both below. */
-const JSONBIN_BIN_ID    = 'YOUR_BIN_ID_HERE';
-const JSONBIN_MASTER_KEY = 'YOUR_MASTER_KEY_HERE';
+const JSONBIN_BIN_ID    = "6a3d9279da38895dfeff7c3f";
+const JSONBIN_MASTER_KEY = '$2a$10$lc3kN2Vs3OoD9s5zZAOIbOyybaj9LGoVYv9YKMt0vW1KtUb0xj0gG';
 const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
-const CLOUD_CONFIGURED = JSONBIN_BIN_ID !== 'YOUR_BIN_ID_HERE' && JSONBIN_MASTER_KEY !== 'YOUR_MASTER_KEY_HERE';
+const CLOUD_CONFIGURED = JSONBIN_BIN_ID !== '6a3d9279da38895dfeff7c3f' && JSONBIN_MASTER_KEY !== '$2a$10$lc3kN2Vs3OoD9s5zZAOIbOyybaj9LGoVYv9YKMt0vW1KtUb0xj0gG';
 
 let courses = DEFAULT_COURSES.map(c => ({...c}));
 
