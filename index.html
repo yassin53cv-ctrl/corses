@@ -574,19 +574,16 @@ footer{background:var(--slate-950);border-top:1px solid var(--slate-800);padding
         </select>
         <input type="number" id="newCourseLessons" placeholder="# Lessons" min="1" />
       </div>
-      <div class="admin-row2">
-        <select id="newCourseColor">
-          <option value="cc-html">HTML (Orange)</option>
-          <option value="cc-js">JavaScript (Yellow)</option>
-          <option value="cc-react">React (Blue)</option>
-          <option value="cc-python">Python (Dark Blue)</option>
-          <option value="cc-backend">Backend (Green)</option>
-          <option value="cc-db">Database (Amber)</option>
-          <option value="cc-ai">AI (Purple)</option>
-          <option value="cc-dsa">DSA (Pink)</option>
-        </select>
-        <input type="number" id="newCourseLessons" placeholder="# Lessons" min="1" />
-      </div>
+      <select id="newCourseColor">
+        <option value="cc-html">HTML (Orange)</option>
+        <option value="cc-js">JavaScript (Yellow)</option>
+        <option value="cc-react">React (Blue)</option>
+        <option value="cc-python">Python (Dark Blue)</option>
+        <option value="cc-backend">Backend (Green)</option>
+        <option value="cc-db">Database (Amber)</option>
+        <option value="cc-ai">AI (Purple)</option>
+        <option value="cc-dsa">DSA (Pink)</option>
+      </select>
       <div class="admin-row2">
         <input type="number" id="newCourseOriginalPrice" placeholder="Original price (EGP)" min="0" />
         <input type="number" id="newCourseDiscountedPrice" placeholder="After discount (EGP)" min="0" />
@@ -679,13 +676,70 @@ const DEFAULT_COURSES = [
   {tag:'DSA',        title:'Data Structures & Algorithms',desc:'Crack coding interviews with solid fundamentals in algorithms and data structures.',  level:'🔴 Advanced',    lessons:30, color:'cc-dsa',   originalPrice:0, discountedPrice:0},
 ];
 
-let courses = JSON.parse(localStorage.getItem('cf_courses') || 'null') || DEFAULT_COURSES;
-// Migrate old data that used a single `price` field
-courses = courses.map(c => ({
-  ...c,
-  originalPrice:  c.originalPrice  ?? c.price ?? 0,
-  discountedPrice: c.discountedPrice ?? c.price ?? 0,
-}));
+/* ──────── SHARED CLOUD STORAGE (jsonbin.io) ────────
+   This makes price changes visible to EVERY visitor, not just your own
+   browser. One-time setup (2 minutes, free):
+   1. Go to https://jsonbin.io and create a free account.
+   2. Click "Create Bin", paste this as the content, then create it:
+        {"courses":[]}
+   3. Copy the Bin ID from the URL/dashboard and your "X-Master-Key"
+      from Account > API Keys.
+   4. Paste both below. */
+const JSONBIN_BIN_ID    = 'YOUR_BIN_ID_HERE';
+const JSONBIN_MASTER_KEY = 'YOUR_MASTER_KEY_HERE';
+const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
+const CLOUD_CONFIGURED = JSONBIN_BIN_ID !== 'YOUR_BIN_ID_HERE' && JSONBIN_MASTER_KEY !== 'YOUR_MASTER_KEY_HERE';
+
+let courses = DEFAULT_COURSES.map(c => ({...c}));
+
+function migrateCourses(list) {
+  return (list || []).map(c => ({
+    ...c,
+    originalPrice:   c.originalPrice  ?? c.price ?? 0,
+    discountedPrice: c.discountedPrice ?? c.price ?? 0,
+  }));
+}
+
+async function fetchCoursesFromCloud() {
+  if (!CLOUD_CONFIGURED) {
+    console.warn('CodeFast: cloud storage not configured yet — showing default prices for everyone. See comments above JSONBIN_BIN_ID.');
+    return null;
+  }
+  try {
+    const res = await fetch(`${JSONBIN_URL}/latest`, {
+      headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }
+    });
+    if (!res.ok) throw new Error('Fetch failed: ' + res.status);
+    const data = await res.json();
+    const list = data && data.record && data.record.courses;
+    return (Array.isArray(list) && list.length) ? list : null;
+  } catch (err) {
+    console.error('CodeFast: could not load shared course data, showing local defaults.', err);
+    return null;
+  }
+}
+
+async function pushCoursesToCloud() {
+  if (!CLOUD_CONFIGURED) {
+    showToast('⚠️ Cloud storage not set up yet — see code comments. Changes will only show in this browser.');
+    return false;
+  }
+  try {
+    const res = await fetch(JSONBIN_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_MASTER_KEY
+      },
+      body: JSON.stringify({ courses })
+    });
+    if (!res.ok) throw new Error('Save failed: ' + res.status);
+    return true;
+  } catch (err) {
+    console.error('CodeFast: failed to save shared course data.', err);
+    return false;
+  }
+}
 
 function priceBadge(c) {
   const orig = Number(c.originalPrice)  || 0;
@@ -766,10 +820,23 @@ function addCourse() {
   showToast('Course added! Click "Save & Apply" to publish.');
 }
 
-function saveChanges() {
-  localStorage.setItem('cf_courses', JSON.stringify(courses));
+async function saveChanges() {
+  const saveBtn = document.querySelector('.btn-admin-save');
+  const originalLabel = saveBtn.innerHTML;
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '⏳ Saving...';
+
+  const ok = await pushCoursesToCloud();
+
+  saveBtn.disabled = false;
+  saveBtn.innerHTML = originalLabel;
   renderCoursesGrid();
-  showToast('✅ Changes saved and applied!');
+
+  if (ok) {
+    showToast('✅ Saved! All visitors will now see the updated prices.');
+  } else if (CLOUD_CONFIGURED) {
+    showToast('❌ Could not save to the cloud. Check your internet connection and try again.');
+  }
 }
 
 /* ──────── ADMIN AUTH ──────── */
@@ -794,9 +861,16 @@ function adminLogin() {
   }
 }
 
-function openAdmin() {
-  renderAdminCourseList();
+async function openAdmin() {
   document.getElementById('adminPanel').classList.add('open');
+  renderAdminCourseList();
+  if (CLOUD_CONFIGURED) {
+    const list = document.getElementById('adminCourseList');
+    if (list) list.innerHTML = '<p style="color:var(--slate-400);font-size:.85rem;padding:.5rem 0">⏳ Loading latest prices...</p>';
+    const cloudList = await fetchCoursesFromCloud();
+    if (cloudList) courses = migrateCourses(cloudList);
+    renderAdminCourseList();
+  }
 }
 
 function closeAdmin() {
@@ -810,8 +884,17 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// Init: render courses from storage on load
-renderCoursesGrid();
+// Init: pull the shared course/price data from the cloud so every
+// visitor sees the same prices. Falls back to local defaults if the
+// cloud store isn't reachable or hasn't been configured yet.
+renderCoursesGrid(); // render defaults immediately so the page isn't blank
+(async () => {
+  const cloudList = await fetchCoursesFromCloud();
+  if (cloudList) {
+    courses = migrateCourses(cloudList);
+    renderCoursesGrid();
+  }
+})();
 
 /* Payment select/show */
 function selectPayment(which){
